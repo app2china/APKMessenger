@@ -1,17 +1,11 @@
 import GUI.WinMain;
-import ToolUtil.SoInfoUtil;
-import ToolUtil.ZipUtil;
-
-
-import java.io.File;
+import javax.swing.SwingUtilities;
 
 public class Main {
     public static void main(String[] args) {
-
-        new WinMain().CreatWin();
-        }
-
+        SwingUtilities.invokeLater(() -> new WinMain().CreatWin());
     }
+}
 
 
 

@@ -1,402 +1,491 @@
 package GUI;
 
-import ToolUtil.SignUtil;
-import com.sun.deploy.panel.JreTableModel;
+import apkinfo.ApkInfo;
+import apkinfo.SigningCertificate;
 
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
 import java.awt.*;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.dnd.DnDConstants;
-import java.awt.dnd.DropTarget;
-import java.awt.dnd.DropTargetAdapter;
-import java.awt.dnd.DropTargetDropEvent;
-import java.awt.event.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class WinMain {
-    private JFrame win;
-    private Label label1;
-    private Label label2;
-    private Label label3;
-    private Label label4;
-    private Label label5;
-    private Label label6;
-    private Label label7;
-    private Label label8;
-    private JTextField Edit_FilePath;
-    private JTextField Edit_AppName;
-    private JTextField Edit_PackageName;
-    private JTextField Edit_VersionName;
-    private JTextField Edit_Version;
-    private JTextField Edit_MD5;
-    private JTextField Edit_PEInfo;
-    private JButton Btn_ll;
-    private JButton Btn_AppName;
-    private JButton Btn_PackageName;
-    private JButton Btn_VersionName;
-    private JButton Btn_Version;
-    private JButton Btn_MD5;
-    private JButton Btn_PEInfo;
-    private JComboBox jComboBox_lang;
-    private Thread ThreadMain;
-    private ApkinfotoUI apkinfotoUI;
-    private JTabbedPane jTabbedPane;
-    private JPanel jPanel_Main;
-    private JPanel jPanel_Permissions;
-    private JPanel jPanel_Sign;
-    private JPanel jPanel_Otherinfo;
-    private JTable jTable_Permissions;
-    private JTable jTable_Sign;
-    private JTable jTable_Otherinfo;
-    private final Color WRITE = new Color(16777215);
+    private final JFrame window = new JFrame("APK Messenger");
+    private final Icon placeholder = Ui.mark(32, Ui.ACCENT, false);
+    private final JLabel appIcon = new JLabel(placeholder, SwingConstants.CENTER);
+    private final JTextField appName = Ui.valueField(21, true, false, Ui.TEXT);
+    private final JTextField packageName = Ui.valueField(13, false, true, Ui.MUTED);
+    private final JTextField apkFileName = Ui.valueField(13, false, false, Ui.TEXT);
+    private final JTextField versionName = Ui.valueField(16, true, false, Ui.TEXT);
+    private final JTextField versionCode = Ui.valueField(16, true, true, Ui.TEXT);
+    private final JTextField md5 = Ui.valueField(12, false, true, Ui.TEXT);
+    private final JTextField protection = Ui.valueField(14, false, false, Ui.TEXT);
+    private final JComboBox<String> languages = Ui.combo();
+    private final Map<JTextField, JButton> copyButtons = new HashMap<>();
+    private final JPanel workspace = Ui.panel(new CardLayout());
+    private final JPanel analysisPages = Ui.panel(new CardLayout());
+    private final JPanel schemePages = Ui.panel(new CardLayout());
+    private final JLabel permissionStatus = Ui.label("", 13, false, Ui.MUTED);
+    private final JLabel status = Ui.label("等待打开 APK", 13, false, Ui.MUTED);
+    private final JLabel feedback = Ui.label("", 13, true, Ui.ACCENT);
+    private final Timer feedbackTimer = new Timer(2600, event -> feedback.setText(""));
+    private final JTable permissions = new JTable();
+    private final LocalizedNamesPanel localizedNames = new LocalizedNamesPanel(this::copy);
+    private final SignaturePanel[] signatureViews = new SignaturePanel[3];
+    private final JToggleButton[] schemeTabs = new JToggleButton[3];
+    private final ApkinfotoUI controller = new ApkinfotoUI(this);
+    private Map<String, String> appNames = Collections.emptyMap();
+    private File currentApk;
+    private boolean fileDialogOpen;
 
     public void CreatWin() {
-        setUI();
-        win = new JFrame("APK Messenger v3.0");
-        win.setSize(586, 277);
-        win.setLocationRelativeTo(null);
-        win.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-        win.setResizable(false);
-        win.setLayout(null);
-        win.getContentPane().setBackground(WRITE);
-        //创建菜单
-        MenuBar menuBar = new MenuBar();
-        Menu menu_1 = new Menu("软件");
-        Menu menu_2 = new Menu("文件");
-        Menu menu_3 = new Menu("工具");
-        Menu menu_4 = new Menu("帮助");
+        window.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        window.setIconImage(makeWindowIcon());
+        window.setMinimumSize(new Dimension(880, 600));
+        feedbackTimer.setRepeats(false);
 
-
-        //软件菜单
-        MenuItem menuItem_1_1 = new MenuItem("软件设置");
-        MenuItem menuItem_1_2 = new MenuItem("生成分析报告");
-        menu_1.add(menuItem_1_1);
-        menu_1.add(menuItem_1_2);
-        //另存为菜单
-        Menu menu_2_1 = new Menu("另存为");
-        MenuItem menuItem_2_1 = new MenuItem("文件名另存");
-        MenuItem menuItem_2_2 = new MenuItem("自定义另存");
-        MenuItem menuItem_2_3 = new MenuItem("软件名称-版本号另存");
-        MenuItem menuItem_2_4 = new MenuItem("包名另存");
-        menu_2_1.add(menuItem_2_1);
-        menu_2_1.add(menuItem_2_2);
-        menu_2_1.add(menuItem_2_3);
-        menu_2_1.add(menuItem_2_4);
-        //工具菜单
-        Menu menu_3_1 = new Menu("在线查询");
-        MenuItem menuItem_3_1 = new MenuItem("Google Play");
-        MenuItem menuItem_3_2 = new MenuItem("酷安");
-        MenuItem menuItem_3_3 = new MenuItem("PP助手");
-        MenuItem menuItem_3_4 = new MenuItem("豌豆荚");
-        menu_3_1.add(menuItem_3_1);
-        menu_3_1.add(menuItem_3_2);
-        menu_3_1.add(menuItem_3_3);
-        menu_3_1.add(menuItem_3_4);
-        //帮助菜单
-        MenuItem menuItem_4_1 = new MenuItem("关于软件");
-        MenuItem menuItem_4_2 = new MenuItem("软件主页");
-        MenuItem menuItem_4_3 = new MenuItem("常见问题");
-        menu_4.add(menuItem_4_1);
-        menu_4.add(menuItem_4_2);
-        menu_4.add(menuItem_4_3);
-        //设置菜单
-        menuBar.add(menu_1);
-        menuBar.add(menu_2);
-        menu_2.add(menu_2_1);
-        menuBar.add(menu_3);
-        menu_3.add(menu_3_1);
-        menuBar.add(menu_4);
-        win.setMenuBar(menuBar);
-        //图标图片框
-        JLabel IcoBox = new JLabel();
-
-        IcoBox.setBounds(8, 24, 152, 152);
-        IcoBox.setBorder(BorderFactory.createLineBorder(Color.black));
-        ImageIcon andico = new ImageIcon(getClass().getResource("andico.png"));
-        IcoBox.setHorizontalAlignment(JLabel.CENTER);//图片居中
-        IcoBox.setIcon(andico);
-        win.add(IcoBox);
-        label1 = DrowLable("文件路径：", 168, 16, 56, 24);
-        label2 = DrowLable("应用名：", 168, 48, 56, 24);
-        label3 = DrowLable("包名：", 168, 75, 56, 24);
-        label4 = DrowLable("版本名：", 168, 104, 56, 24);
-        label5 = DrowLable("文件MD5：", 168, 136, 56, 24);
-        label6 = DrowLable("加固类型：", 168, 168, 56, 24);
-        label7 = DrowLable("版本号：", 377, 104, 45, 24);
-        label8 = DrowLable("展开》》》", 500, 200, 64, 24);
-        label8.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        label8.addMouseListener(new MouseListener() {
+        JPanel root = new JPanel(new BorderLayout());
+        Ui.background(root, Ui.BACKGROUND);
+        root.add(header(), BorderLayout.NORTH);
+        root.add(sidebar(), BorderLayout.WEST);
+        workspace.setBorder(new EmptyBorder(22, 24, 22, 24));
+        workspace.add(emptyWorkspace(), "empty");
+        workspace.add(analysis(), "analysis");
+        root.add(workspace, BorderLayout.CENTER);
+        root.add(footer(), BorderLayout.SOUTH);
+        window.setContentPane(root);
+        new ApkDropTarget(window.getRootPane(), this::open, this::notifyUser);
+        window.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK), "open-apk");
+        window.getRootPane().getActionMap().put("open-apk", new AbstractAction() {
             @Override
-            public void mouseClicked(MouseEvent e) {
+            public void actionPerformed(ActionEvent event) {
+                chooseApk();
+            }
+        });
+
+        resetSummary();
+        setValue(appName, "尚未打开 APK");
+        setPermissions(new String[0][]);
+        window.setSize(1160, 800);
+        window.setLocationRelativeTo(null);
+        window.setVisible(true);
+        SystemAppearance.follow(window);
+    }
+
+    private Image makeWindowIcon() {
+        java.awt.image.BufferedImage image =
+                new java.awt.image.BufferedImage(32, 32, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        Ui.mark(32, Ui.ACCENT, true).paintIcon(window, graphics, 0, 0);
+        graphics.dispose();
+        return image;
+    }
+
+    private JPanel header() {
+        JPanel header = new JPanel(new BorderLayout());
+        Ui.background(header, Ui.SIDEBAR);
+        header.setBorder(BorderFactory.createCompoundBorder(
+                Ui.border(0, 0, 1, 0), new EmptyBorder(13, 24, 13, 24)));
+        JPanel brand = Ui.panel(new BorderLayout(11, 0));
+        JPanel badge = Ui.card(Ui.ACCENT_FILL, 13);
+        badge.setLayout(new BorderLayout());
+        badge.setPreferredSize(new Dimension(38, 38));
+        badge.add(new JLabel(Ui.mark(23, Ui.ACCENT, true), SwingConstants.CENTER));
+        brand.add(badge, BorderLayout.WEST);
+        brand.add(Ui.label("APK Messenger", 21, true, Ui.TEXT), BorderLayout.CENTER);
+        header.add(brand, BorderLayout.WEST);
+
+        JButton open = Ui.button("打开 APK", true);
+        open.setIcon(Ui.mark(17, Ui.INK, false));
+        open.setIconTextGap(7);
+        open.setToolTipText("打开 APK 文件 (Ctrl+O)");
+        open.addActionListener(event -> chooseApk());
+        header.add(open, BorderLayout.EAST);
+        return header;
+    }
+
+    private JPanel sidebar() {
+        JPanel rail = new JPanel(new BorderLayout());
+        rail.setPreferredSize(new Dimension(286, 0));
+        Ui.background(rail, Ui.SIDEBAR);
+        rail.setBorder(Ui.border(0, 0, 0, 1));
+
+        JPanel body = Ui.column();
+        body.setBorder(new EmptyBorder(20, 18, 18, 18));
+        body.add(Ui.label("应用概览", 15, true, Ui.MUTED));
+        body.add(Box.createVerticalStrut(15));
+
+        JPanel iconTile = Ui.card(Ui.ACCENT_FILL, 17);
+        iconTile.setLayout(new BorderLayout());
+        iconTile.setAlignmentX(Component.LEFT_ALIGNMENT);
+        iconTile.setPreferredSize(new Dimension(68, 68));
+        iconTile.setMaximumSize(new Dimension(68, 68));
+        iconTile.add(appIcon);
+        body.add(iconTile);
+        body.add(Box.createVerticalStrut(10));
+        appName.setAlignmentX(Component.LEFT_ALIGNMENT);
+        packageName.setAlignmentX(Component.LEFT_ALIGNMENT);
+        appName.setMaximumSize(new Dimension(Integer.MAX_VALUE, 31));
+        packageName.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+        appName.getAccessibleContext().setAccessibleName("应用名");
+        packageName.getAccessibleContext().setAccessibleName("包名");
+        body.add(appName);
+        body.add(packageName);
+        body.add(Box.createVerticalStrut(17));
+
+        JPanel versions = Ui.card(Ui.SURFACE, 15);
+        versions.setLayout(new GridLayout(1, 2, 10, 0));
+        versions.setBorder(new EmptyBorder(12, 13, 12, 13));
+        versions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        versions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        versions.add(field("版本名", versionName, false));
+        versions.add(field("版本号", versionCode, false));
+        body.add(versions);
+        body.add(Box.createVerticalStrut(16));
+        body.add(field("APK 文件", apkFileName, true));
+        body.add(Box.createVerticalStrut(10));
+        body.add(field("文件 MD5", md5, true));
+        body.add(Box.createVerticalStrut(10));
+        body.add(field("加固类型", protection, false));
+        body.add(Box.createVerticalStrut(16));
+
+        JLabel localeLabel = Ui.label("应用名语言", 12, false, Ui.MUTED);
+        localeLabel.setLabelFor(languages);
+        body.add(localeLabel);
+        body.add(Box.createVerticalStrut(6));
+        languages.setAlignmentX(Component.LEFT_ALIGNMENT);
+        languages.setMaximumSize(new Dimension(Integer.MAX_VALUE, 33));
+        languages.setEnabled(false);
+        languages.addActionListener(event -> {
+            Object selection = languages.getSelectedItem();
+            if (selection != null) {
+                setValue(appName, appNames.get("默认".equals(selection) ? "label" : selection));
+            }
+        });
+        body.add(languages);
+
+        JScrollPane scroll = Ui.scroll(body);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        rail.add(scroll, BorderLayout.CENTER);
+
+        JToggleButton alwaysOnTop = Ui.tab("窗口置顶", false);
+        alwaysOnTop.addActionListener(event -> window.setAlwaysOnTop(alwaysOnTop.isSelected()));
+        JPanel options = Ui.panel(new BorderLayout());
+        options.setBorder(new EmptyBorder(7, 17, 11, 17));
+        options.add(alwaysOnTop, BorderLayout.WEST);
+        rail.add(options, BorderLayout.SOUTH);
+        return rail;
+    }
+
+    private JPanel field(String name, JTextField value, boolean canCopy) {
+        JPanel group = Ui.panel(new BorderLayout(0, 5));
+        group.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel label = Ui.label(name, 12, false, Ui.MUTED);
+        label.setLabelFor(value);
+        if (canCopy) {
+            JPanel title = Ui.panel(new BorderLayout());
+            title.add(label, BorderLayout.CENTER);
+            boolean path = value == apkFileName;
+            JButton button = Ui.button(path ? "复制路径" : "复制", false);
+            button.getAccessibleContext().setAccessibleName(path ? "复制 APK 文件路径" : "复制" + name);
+            button.setEnabled(false);
+            button.addActionListener(event -> copy(path ? currentApk.getAbsolutePath() : value.getText(),
+                    path ? "APK 路径" : name));
+            title.add(button, BorderLayout.EAST);
+            copyButtons.put(value, button);
+            group.add(title, BorderLayout.NORTH);
+        } else {
+            group.add(label, BorderLayout.NORTH);
+        }
+        group.add(value, BorderLayout.CENTER);
+        group.setMaximumSize(new Dimension(Integer.MAX_VALUE, group.getPreferredSize().height));
+        return group;
+    }
+
+    private JPanel emptyWorkspace() {
+        JPanel area = Ui.card(Ui.SURFACE, 22);
+        area.setLayout(new GridBagLayout());
+        JPanel instructions = Ui.column();
+        JPanel tile = Ui.card(Ui.ACCENT_FILL, 20);
+        tile.setLayout(new BorderLayout());
+        tile.setAlignmentX(Component.CENTER_ALIGNMENT);
+        tile.setPreferredSize(new Dimension(72, 72));
+        tile.setMaximumSize(new Dimension(72, 72));
+        tile.add(new JLabel(Ui.mark(38, Ui.ACCENT, false), SwingConstants.CENTER));
+        instructions.add(tile);
+        instructions.add(Box.createVerticalStrut(17));
+        JLabel title = Ui.label("打开一个 APK", 24, true, Ui.TEXT);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        instructions.add(title);
+        instructions.add(Box.createVerticalStrut(8));
+        JLabel help = Ui.label("将 APK 拖到这里，或在资源管理器复制文件后按 Ctrl+V。", 14, false, Ui.MUTED);
+        help.setAlignmentX(Component.CENTER_ALIGNMENT);
+        instructions.add(help);
+        area.add(instructions);
+        return area;
+    }
+
+    private JPanel analysis() {
+        JPanel area = Ui.panel(new BorderLayout(0, 17));
+        JPanel tabs = Ui.panel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        tabs.setBorder(Ui.border(0, 0, 1, 0));
+        ButtonGroup group = new ButtonGroup();
+        addTab(tabs, group, analysisPages, "签名信息", "signatures", true, true);
+        addTab(tabs, group, analysisPages, "权限信息", "permissions", false, true);
+        addTab(tabs, group, analysisPages, "多语言文件名", "localized-names", false, true);
+        area.add(tabs, BorderLayout.NORTH);
+        analysisPages.add(signatureWorkspace(), "signatures");
+        analysisPages.add(permissionWorkspace(), "permissions");
+        analysisPages.add(localizedNames, "localized-names");
+        area.add(analysisPages, BorderLayout.CENTER);
+        return area;
+    }
+
+    private JPanel signatureWorkspace() {
+        JPanel area = Ui.panel(new BorderLayout(0, 12));
+        JPanel tabs = Ui.panel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        ButtonGroup group = new ButtonGroup();
+        for (int index = 0; index < signatureViews.length; index++) {
+            String version = "V" + (index + 1);
+            signatureViews[index] = new SignaturePanel(version, this::copy);
+            schemePages.add(signatureViews[index], version);
+            schemeTabs[index] = addTab(tabs, group, schemePages, version, version, index == 0, false);
+            if (index < signatureViews.length - 1) {
+                tabs.add(Box.createHorizontalStrut(8));
+            }
+        }
+        area.add(tabs, BorderLayout.NORTH);
+        area.add(schemePages, BorderLayout.CENTER);
+        return area;
+    }
+
+    private JToggleButton addTab(JPanel tabs, ButtonGroup group, JPanel pages, String label, String card,
+                                 boolean selected, boolean navigation) {
+        JToggleButton tab = Ui.tab(label, navigation);
+        group.add(tab);
+        tab.setSelected(selected);
+        tab.addActionListener(event -> ((CardLayout) pages.getLayout()).show(pages, card));
+        tabs.add(tab);
+        return tab;
+    }
+
+    private JPanel permissionWorkspace() {
+        JPanel panel = Ui.card(Ui.SURFACE, 18);
+        panel.setLayout(new BorderLayout(0, 12));
+        panel.setBorder(new EmptyBorder(16, 18, 16, 18));
+        permissionStatus.setFont(Ui.font(15, true));
+        panel.add(permissionStatus, BorderLayout.NORTH);
+        Ui.styleTable(permissions, 0);
+        panel.add(Ui.scroll(permissions), BorderLayout.CENTER);
+        JTextArea details = new JTextArea();
+        details.setEditable(false);
+        details.setLineWrap(true);
+        details.setWrapStyleWord(true);
+        details.setFont(Ui.font(13, false));
+        Ui.background(details, Ui.BACKGROUND);
+        Ui.foreground(details, Ui.TEXT);
+        details.setBorder(new EmptyBorder(10, 10, 10, 10));
+        JScrollPane detailPane = Ui.scroll(details);
+        detailPane.setPreferredSize(new Dimension(0, 110));
+        detailPane.setVisible(false);
+        panel.add(detailPane, BorderLayout.SOUTH);
+        permissions.getSelectionModel().addListSelectionListener(event -> {
+            int row = permissions.getSelectedRow();
+            detailPane.setVisible(row >= 0);
+            if (row >= 0) {
+                details.setText(permissions.getValueAt(row, 0) + "\n"
+                        + permissions.getValueAt(row, 3) + "\n" + permissions.getValueAt(row, 4));
+                details.setCaretPosition(0);
+            }
+            panel.revalidate();
+        });
+        return panel;
+    }
+
+    private JPanel footer() {
+        JPanel bar = new JPanel(new BorderLayout(12, 0));
+        Ui.background(bar, Ui.SIDEBAR);
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                Ui.border(1, 0, 0, 0), new EmptyBorder(8, 24, 8, 24)));
+        bar.add(status);
+        bar.add(feedback, BorderLayout.EAST);
+        return bar;
+    }
+
+    void showLoading(File apk) {
+        currentApk = apk;
+        resetSummary();
+        setValue(appName, "正在读取 APK…");
+        setValue(apkFileName, apk.getName());
+        apkFileName.setToolTipText(" " + apk.getAbsolutePath());
+        setPermissions(new String[0][]);
+        localizedNames.showStatus("正在读取多语言应用名…");
+        permissionStatus.setText("正在读取权限…");
+        for (int index = 0; index < signatureViews.length; index++) {
+            showSignatures(index, Collections.emptyList(), "正在读取 V" + (index + 1) + " 签名…");
+        }
+        Ui.foreground(status, Ui.MUTED);
+        status.setText("正在读取  ·  " + apk.getName());
+        feedback.setText("");
+        ((CardLayout) workspace.getLayout()).show(workspace, "analysis");
+    }
+
+    void showMetadata(ApkInfo apk) {
+        appNames = new HashMap<>(apk.getAppName());
+        languages.setModel(new DefaultComboBoxModel<>(new String[]{"默认"}));
+        for (String locale : LocalizedNamesPanel.localeTags(apk)) {
+            languages.addItem(locale);
+        }
+        languages.setEnabled(languages.getItemCount() > 1);
+        String chinese = LocalizedNamesPanel.preferredChinese(apk);
+        if (chinese != null) {
+            languages.setSelectedItem(chinese);
+        }
+        setValue(appName, chinese == null ? apk.getLabel() : appNames.get(chinese));
+        setValue(packageName, apk.getPackageName());
+        setValue(versionName, apk.getVersionName());
+        setValue(versionCode, apk.getVersionCode());
+        localizedNames.showApk(apk);
+        status.setText("已读取基本信息  ·  " + currentApk.getName());
+    }
+
+    void showPermissions(String[][] rows, boolean fromManifest) {
+        setPermissions(rows);
+        String title = rows.length + " 项权限声明";
+        permissionStatus.setText(fromManifest ? title + "  ·  AndroidManifest.xml"
+                : "清单读取失败  ·  权限摘要（" + rows.length + " 项）");
+    }
+
+    void showApkIcon(Icon icon) {
+        appIcon.setIcon(icon == null ? placeholder : icon);
+    }
+
+    void showMetadataError() {
+        setValue(appName, "基本信息读取失败");
+        permissionStatus.setText("无法读取权限");
+        localizedNames.showStatus("无法读取多语言应用名");
+        Ui.foreground(status, Ui.ALERT);
+        status.setText("无法读取 APK 基本信息，请检查文件是否有效");
+    }
+
+    void showFileDetails(String hash, String protectionType) {
+        setValue(md5, hash);
+        if (hash == null) {
+            md5.setText("读取失败");
+        }
+        setValue(protection, protectionType);
+    }
+
+    void showSignatures(int index, List<SigningCertificate> certificates, String message) {
+        String version = "V" + (index + 1);
+        signatureViews[index].setCertificates(certificates, message);
+        schemeTabs[index].setText(certificates.isEmpty() ? version : version + "  ·  " + certificates.size());
+        schemeTabs[index].setToolTipText(certificates.isEmpty() ? message : certificates.size() + " 张证书");
+    }
+
+    private void resetSummary() {
+        appIcon.setIcon(placeholder);
+        appNames = Collections.emptyMap();
+        languages.setModel(new DefaultComboBoxModel<>(new String[]{"默认"}));
+        languages.setEnabled(false);
+        setValue(apkFileName, null);
+        setValue(packageName, null);
+        setValue(versionName, null);
+        setValue(versionCode, null);
+        setValue(md5, null);
+        setValue(protection, null);
+    }
+
+    private void setValue(JTextField field, String value) {
+        boolean present = value != null && !value.isEmpty();
+        field.setText(present ? value : "—");
+        field.setCaretPosition(0);
+        field.setToolTipText(present ? " " + value : null);
+        JButton action = copyButtons.get(field);
+        if (action != null) {
+            action.setEnabled(present);
+        }
+    }
+
+    private void setPermissions(String[][] rows) {
+        permissions.setModel(new DefaultTableModel(rows, new String[]{"权限标识", "名称", "保护级别", "声明与条件", "说明"}) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        });
+        permissions.getColumnModel().getColumn(0).setPreferredWidth(285);
+        permissions.getColumnModel().getColumn(1).setPreferredWidth(125);
+        permissions.getColumnModel().getColumn(2).setPreferredWidth(110);
+        permissions.getColumnModel().getColumn(3).setPreferredWidth(155);
+        permissions.getColumnModel().getColumn(4).setPreferredWidth(260);
+    }
+
+    private void chooseApk() {
+        if (fileDialogOpen) {
+            return;
+        }
+        fileDialogOpen = true;
+        File previous = currentApk;
+        SwingWorker<File, Void> picker = new SwingWorker<File, Void>() {
+            @Override
+            protected File doInBackground() throws IOException {
+                return WindowsApkDialog.choose(window, previous);
             }
 
             @Override
-            public void mousePressed(MouseEvent e) {
-            }
-
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                if (win.getHeight() == 535) {
-                    label8.setText("展开》》》");
-                    win.setSize(586, 277);
-                } else {
-                    label8.setText("收起《《《");
-                    win.setSize(586, 535);
+            protected void done() {
+                fileDialogOpen = false;
+                if (!window.isDisplayable()) {
+                    return;
                 }
-            }
-
-            @Override
-            public void mouseEntered(MouseEvent e) {
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-            }
-        });
-        //语言选择下拉列表
-        jComboBox_lang = new JComboBox();
-        jComboBox_lang.setBounds(232, 49, 72, 20);
-        jComboBox_lang.addItem("默认");
-        //编辑框绘制
-        Edit_FilePath = DrowEdit("", 232, 16, 256, 24);
-        Edit_AppName = DrowEdit("", 312, 48, 176, 24);
-        Edit_PackageName = DrowEdit("", 232, 75, 256, 24);
-        Edit_VersionName = DrowEdit("", 232, 104, 64, 24);
-        Edit_Version = DrowEdit("", 424, 104, 64, 24);
-        Edit_MD5 = DrowEdit("", 232, 136, 256, 24);
-        Edit_PEInfo = DrowEdit("", 232, 168, 256, 24);
-        //绘制按钮
-        Btn_ll = DrowBtn("浏览", 497, 16, 72, 24);
-        Btn_AppName = DrowBtn("复制", 497, 46, 72, 24);
-        Btn_PackageName = DrowBtn("复制", 497, 74, 72, 24);
-        Btn_VersionName = DrowBtn("复制", 301, 104, 72, 24);
-        Btn_Version = DrowBtn("复制", 497, 104, 72, 24);
-        Btn_MD5 = DrowBtn("复制", 497, 136, 72, 24);
-        Btn_PEInfo = DrowBtn("复制", 497, 168, 72, 24);
-        //事件绑定
-        Btn_ll.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                JFileChooser fileChooser = new JFileChooser();
-                FileNameExtensionFilter fileNameExtensionFilter = new FileNameExtensionFilter("安卓apk文件", "apk");
-                fileChooser.addChoosableFileFilter(fileNameExtensionFilter);
-                fileChooser.setFileFilter(fileNameExtensionFilter);
-                fileChooser.showOpenDialog(win.getContentPane());
-            }
-        });
-        JCheckBox top = new JCheckBox("窗口顶置");
-        top.setBounds(8, 200, 96, 24);
-        top.setBackground(WRITE);
-        top.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                win.setAlwaysOnTop(top.isSelected());//窗口顶置
-            }
-        });
-        top.setFocusable(false);
-
-        //绘制详细信息的面板
-        jPanel_Main = new JPanel();
-        jPanel_Permissions = new JPanel();
-        jPanel_Permissions.setOpaque(false);
-
-
-        jPanel_Sign = new JPanel();
-        jPanel_Sign.setBackground(WRITE);
-        jPanel_Otherinfo = new JPanel();
-        jPanel_Otherinfo.setBackground(WRITE);
-        jTabbedPane = new JTabbedPane();
-        jTabbedPane.setBackground(WRITE);
-        jPanel_Main.setBounds(8, 232, 560, 248);
-        jPanel_Main.setBackground(WRITE);
-        jTabbedPane.setBounds(8, 0, 550, 240);
-        jPanel_Main.setLayout(null);
-        jPanel_Main.add(jTabbedPane);
-        jTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
-
-
-        //权限表
-
-        String[] jTable_Permissions_colname = {"编号", "英文名", "权限名称", "权限注释"};
-        jTable_Permissions = new JTable(null, jTable_Permissions_colname);
-        //禁止表格编辑
-        DefaultTableModel jTable_PermissionsTableModel = new DefaultTableModel() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        jTable_Permissions.setGridColor(WRITE);
-
-        JScrollPane jScrollPane_Permissions=new JScrollPane(jTable_Permissions);//拖动面板
-       jScrollPane_Permissions.setBorder(BorderFactory.createLineBorder(WRITE));
-        jTable_Permissions.getTableHeader().setReorderingAllowed(false);//禁止拖动
-
-        jPanel_Permissions.setLayout(new BorderLayout());
-      // jScrollPane_Permissions.setOpaque(false);
-        jScrollPane_Permissions.setBackground(WRITE);
-        jPanel_Permissions.add(jScrollPane_Permissions, BorderLayout.CENTER);
-
-        jTable_PermissionsTableModel.setDataVector(null, jTable_Permissions_colname);
-        jTable_Permissions.setModel(jTable_PermissionsTableModel);
-        jTable_Permissions.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        jTable_Permissions.getColumnModel().getColumn(0).setPreferredWidth(50);
-        jTable_Permissions.getColumnModel().getColumn(1).setPreferredWidth(120);
-        jTable_Permissions.getColumnModel().getColumn(2).setPreferredWidth(120);
-        jTable_Permissions.getColumnModel().getColumn(3).setPreferredWidth(400);
-        //签名表
-        String[] jTable_Sign_colname = {"项目名称", "项目内容"};
-        jTable_Sign = new JTable(null, jTable_Sign_colname);
-        //禁止表格编辑
-        DefaultTableModel jTable_SignTableModel = new DefaultTableModel() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        jTable_Sign.setGridColor(WRITE);
-        jTable_Sign.getTableHeader().setReorderingAllowed(false);//禁止拖动
-        jPanel_Sign.setLayout(new BorderLayout());
-        JTableHeader jTableHeaderSign = jTable_Sign.getTableHeader();
-        jPanel_Sign.add(jTableHeaderSign, BorderLayout.NORTH);//添加表头
-        jPanel_Sign.add(jTable_Sign, BorderLayout.CENTER);
-        jTable_SignTableModel.setDataVector(null, jTable_Sign_colname);
-        jTable_Sign.setModel(jTable_SignTableModel);
-        //其他信息表
-        String[] jTable_Other_colname = {"项目名称", "项目内容", "注释"};
-        jTable_Otherinfo = new JTable(null, jTable_Other_colname);
-        //禁止表格编辑
-        DefaultTableModel jTable_OtherTableModel = new DefaultTableModel() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        jTable_Otherinfo.setGridColor(WRITE);
-        jTable_Otherinfo.getTableHeader().setReorderingAllowed(false);//禁止拖动
-        jPanel_Otherinfo.setLayout(new BorderLayout());
-        JTableHeader jTableHeaderOther = jTable_Otherinfo.getTableHeader();
-        jPanel_Otherinfo.add(jTableHeaderOther, BorderLayout.NORTH);//添加表头
-        jPanel_Otherinfo.add(jTable_Otherinfo, BorderLayout.CENTER);
-        jTable_OtherTableModel.setDataVector(null, jTable_Other_colname);
-        jTable_Otherinfo.setModel(jTable_OtherTableModel);
-
-
-        jTabbedPane.addTab("权限信息", jPanel_Permissions);
-        jTabbedPane.addTab("签名信息", jPanel_Sign);
-        jTabbedPane.addTab("其他信息", jPanel_Otherinfo);
-        //添加组件
-        addobj(Edit_AppName, Edit_FilePath, Edit_MD5, Edit_PackageName, Edit_PEInfo, Edit_Version, Edit_VersionName);
-        addobj(label1, label2, label3, label4, label5, label6, label7, label8);
-        addobj(Btn_AppName, Btn_ll, Btn_MD5, Btn_PackageName, Btn_PEInfo, Btn_Version, Btn_VersionName, jComboBox_lang, top);
-        addobj(jPanel_Main);
-        addDropTarget(win.getContentPane());
-        addDropTarget(Edit_AppName);
-        addDropTarget(Edit_FilePath);
-        addDropTarget(Edit_MD5);
-        addDropTarget(Edit_PackageName);
-        addDropTarget(Edit_PEInfo);
-        addDropTarget(Edit_Version);
-        addDropTarget(Edit_VersionName);
-
-
-        addDropTarget(IcoBox);
-        win.setVisible(true);
-        apkinfotoUI = new ApkinfotoUI(Edit_FilePath, Edit_AppName, Edit_PackageName, Edit_VersionName, Edit_Version, Edit_MD5
-                , Edit_PEInfo, jComboBox_lang, IcoBox,jTable_Permissions,jTable_Sign,jTable_Otherinfo);
-    }
-
-    private void addDropTarget(Component obj) {
-        DropTarget dropTarget = CreatdropTarget();
-        obj.setDropTarget(dropTarget);
-
-    }
-
-    private DropTarget CreatdropTarget() {
-        DropTargetAdapter dropTargetAdapter = new DropTargetAdapter() {
-            @Override
-            public void drop(DropTargetDropEvent dtde) {
                 try {
-                    if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor))//如果拖入的文件格式受支持
-                    {
-                        //只能单一拖放
-                        dtde.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);//接收拖拽来的数据
-                        List<File> list = (List<File>) (dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor));
-                        //获取文件后缀名
-                        String FileName = list.get(0).getAbsolutePath();
-                        String prefix = FileName.substring(FileName.lastIndexOf(".") + 1).toLowerCase();
-                        if (prefix.equals("apk")) {
-
-                            ThreadMain = new Thread(new Runnable() {
-                                @Override
-                                public void run() {
-
-
-                                     apkinfotoUI.OpenApkFile(FileName);
-                                }
-                            });
-                            ThreadMain.start();
-
-                        }
-
-
-                        dtde.dropComplete(true);//指示拖拽操作已完成
-                    } else {
-                        dtde.rejectDrop();//否则拒绝拖拽来的数据
+                    File chosen = get();
+                    if (chosen != null) {
+                        open(chosen);
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    System.err.println("打开 Windows 文件选择框失败：" + e.getCause());
+                    notifyUser("无法打开 Windows 文件选择框，可将 APK 拖入窗口");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
             }
         };
-        DropTarget dropTarget = new DropTarget(win, dropTargetAdapter);
-        return dropTarget;
+        new Thread(picker, "Windows APK picker").start();
     }
 
-
-    private void addobj(Object... objs) {
-        for (Object obj : objs) {
-            win.add((Component) obj);
+    private boolean open(File file) {
+        if (!ApkDropTarget.isApk(file)) {
+            notifyUser("请选择一个 .apk 文件");
+            return false;
         }
-
+        controller.OpenApkFile(file.getAbsolutePath());
+        return true;
     }
 
-    private Label DrowLable(String str, int x, int y, int w, int h) {
-        Label lab = new Label(str);
-        lab.setBounds(x, y, w, h);
-        return lab;
-    }
-
-    private JTextField DrowEdit(String str, int x, int y, int w, int h) {
-        JTextField Edit = new JTextField(str);
-        Edit.setBounds(x, y, w, h);
-        return Edit;
-    }
-
-    private JButton DrowBtn(String str, int x, int y, int w, int h) {
-        JButton Btn = new JButton(str);
-        Btn.setBounds(x, y, w, h);
-        return Btn;
-    }
-
-
-    private void setUI() {
-        String windows = "com.sun.java.swing.plaf.windows.WindowsLookAndFeel";
+    private void copy(String text, String label) {
         try {
-            UIManager.setLookAndFeel(windows);
-        } catch (UnsupportedLookAndFeelException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+            notifyUser("已复制" + label);
+        } catch (IllegalStateException | SecurityException e) {
+            notifyUser("无法访问剪贴板，请重试");
         }
     }
 
+    private void notifyUser(String message) {
+        feedback.setText(message);
+        feedbackTimer.restart();
+    }
 }

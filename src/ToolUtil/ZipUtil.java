@@ -1,36 +1,24 @@
 package ToolUtil;
 
-import java.io.*;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 
 public class ZipUtil {
-    public static List readZipFile(String file, String soDir) throws Exception {
-
-        List<String> Sofilelist = new ArrayList<>();//加固文件列表
-        ZipFile zf = new ZipFile(file);
-        InputStream in = new BufferedInputStream(new FileInputStream(file));
-        ZipInputStream zin = new ZipInputStream(in);
-        ZipEntry ze;
-        while ((ze = zin.getNextEntry()) != null) {
-            if (ze.isDirectory()) {
-
-            } else {
-                String str = ze.getName();
-                if (str.substring(0, 4).equals(soDir)) {
-                    //System.out.println(str);
-                    Sofilelist.add(str);
-
+    public static List<String> readZipFile(String file, String prefix) throws IOException {
+        List<String> matches = new ArrayList<>();
+        try (ZipFile zip = new ZipFile(file)) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (!entry.isDirectory() && entry.getName().startsWith(prefix)) {
+                    matches.add(entry.getName());
                 }
-
-
             }
         }
-        zin.closeEntry();
-    return Sofilelist;
+        return matches;
     }
-
 }

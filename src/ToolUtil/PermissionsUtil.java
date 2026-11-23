@@ -3,7 +3,10 @@ package ToolUtil;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,23 +29,27 @@ public class PermissionsUtil {
 
     public PermissionsUtil() {
         try {
-            File f = new File("src/res/Permissionsinfo.dat");
-            if (f.isFile() && f.exists()) {
-                InputStreamReader read = new InputStreamReader(new FileInputStream(f), "utf-8");
-                BufferedReader reader = new BufferedReader(read);
-                String line;
+            InputStream data = PermissionsUtil.class.getResourceAsStream("/res/Permissionsinfo.dat");
+            if (data == null) {
+                File file = new File("src/res/Permissionsinfo.dat");
+                if (!file.isFile()) {
+                    return;
+                }
+                data = new FileInputStream(file);
+            }
 
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(data, StandardCharsets.UTF_8))) {
+                String line;
                 while ((line = reader.readLine()) != null) {
-                    String[] str = line.split("/");
-                    for (int i = 0; i < str.length; i++) {
-                        List_PermissionsKey.add(str[0]);
-                        List_PermissionsName.add(str[1]);
-                        List_PermissionsNotes.add(str[2]);
+                    String[] fields = line.split("/", 3);
+                    if (fields.length == 3) {
+                        List_PermissionsKey.add(fields[0]);
+                        List_PermissionsName.add(fields[1]);
+                        List_PermissionsNotes.add(fields[2]);
                     }
                 }
-                read.close();
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

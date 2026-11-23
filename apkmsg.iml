@@ -11,6 +11,8 @@
       <library>
         <CLASSES>
           <root url="jar://$MODULE_DIR$/lib/commons-codec-1.9.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib/jna-5.6.0.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib/jna-platform-5.6.0.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

@@ -1,244 +1,163 @@
 package GUI;
 
-import ToolUtil.*;
+import ToolUtil.Md5CaculateUtil;
+import ToolUtil.SignUtil;
+import ToolUtil.SoInfoUtil;
+import ToolUtil.ZipUtil;
 import apkinfo.ApkInfo;
 import apkinfo.ApkUtil;
+import apkinfo.AndroidPermissionCatalog;
+import apkinfo.ManifestPermission;
+import apkinfo.SigningCertificate;
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.io.*;
-import java.util.HashMap;
+import javax.imageio.ImageIO;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.SwingUtilities;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class ApkinfotoUI {
-    private JTextField Edit_FilePath;
-    private JTextField Edit_AppName;
-    private JTextField Edit_PackageName;
-    private JTextField Edit_VersionName;
-    private JTextField Edit_Version;
-    private JTextField Edit_MD5;
-    private JTextField Edit_PEInfo;
-    private JComboBox jComboBox_lang;
-    private Map AppName;
-    private List AppNamekey;
-    private ItemListener itemListener;
-    private String FilePath;
-    private JLabel IcoBox;
-    private JTable jTable_Permissions;
-    private JTable jTable_Sign;
-    private JTable jTable_Otherinfo;
+    private final WinMain view;
+    private final AtomicLong apkRequest = new AtomicLong();
 
-    public ApkinfotoUI(JTextField Edit_FilePath, JTextField Edit_AppName, JTextField Edit_PackageName, JTextField Edit_VersionName,
-                       JTextField Edit_Version, JTextField Edit_MD5, JTextField Edit_PEInfo, JComboBox jComboBox_lang, JLabel IcoBox, JTable jTable_Permissions
-            , JTable jTable_Sign, JTable jTable_Otherinfo
-    ) {
-
-
-
-        this.Edit_FilePath = Edit_FilePath;
-        this.Edit_AppName = Edit_AppName;
-        this.Edit_MD5 = Edit_MD5;
-        this.Edit_PackageName = Edit_PackageName;
-        this.Edit_PEInfo = Edit_PEInfo;
-        this.Edit_Version = Edit_Version;
-        this.Edit_VersionName = Edit_VersionName;
-        this.jComboBox_lang = jComboBox_lang;
-        this.IcoBox = IcoBox;
-        this.jTable_Permissions = jTable_Permissions;
-        this.jTable_Sign = jTable_Sign;
-        this.jTable_Otherinfo = jTable_Otherinfo;
-
-        itemListener = getItemListener();
-        jComboBox_lang.removeItemListener(itemListener);
-        jComboBox_lang.addItemListener(itemListener);
+    ApkinfotoUI(WinMain view) {
+        this.view = view;
     }
 
-    public void OpenApkFile(String FilePath) {
-        this.FilePath = FilePath;
-        ApkUtil apkUtil = new ApkUtil();
-        ApkInfo apkInfo = apkUtil.parseApk(FilePath);
-        Edit_FilePath.setText(FilePath);
-        Edit_PackageName.setText(apkInfo.getPackageName());
-        Edit_AppName.setText(apkInfo.getLabel());
-
-        Edit_VersionName.setText(apkInfo.getVersionName());
-        Edit_Version.setText(apkInfo.getVersionCode());
-        AppName = apkInfo.getAppName();
-        AppNamekey = apkInfo.getAppNameKey();
-
-        if (AppNamekey.size() != 0) {
-            jComboBox_lang.removeAllItems();
-            for (Object key : AppNamekey) {
-                if (key.equals("label")) {
-                    jComboBox_lang.addItem("默认");
-                } else {
-                    jComboBox_lang.addItem(key);
-                }
-            }
-            Edit_AppName.setText((String) AppName.get("label"));
+    public void OpenApkFile(String filePath) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> OpenApkFile(filePath));
+            return;
         }
+        File apk = new File(filePath);
+        long request = apkRequest.incrementAndGet();
+        view.showLoading(apk);
+        new Thread(() -> loadSignatures(apk, request), "APK certificates").start();
+        new Thread(() -> loadApkInfo(apk, request), "APK information").start();
+    }
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Edit_MD5.setText("正在读取MD5");
-                File file = new File(FilePath);
-                String md5 = Md5CaculateUtil.getMD5(file);
-                Edit_MD5.setText(md5.toUpperCase());
-            }
-        }).start();
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Edit_PEInfo.setText("读取加固信息中");
-                    List SoList = ZipUtil.readZipFile(FilePath, "lib/");
-                    SoInfoUtil soInfoUtil = new SoInfoUtil();
-                    String soname = "";
-                    for (Object s : SoList) {
-                        System.out.println(s);
-                        File tempFile = new File((String) s);
-                        String fileName = tempFile.getName();
-                        soname = soInfoUtil.IsThisSo(fileName);
-                        if (soname.length() != 0) {
-                            break;
-                        }
-                    }
-                    if (soname.length() != 0) {
-                        Edit_PEInfo.setText(soname);
-                    } else {
-                        Edit_PEInfo.setText("没有加固或者未知加固");
-                    }
-
-                } catch (Exception e) {
-                    e.printStackTrace();
+    private void loadSignatures(File apk, long request) {
+        for (int index = 0; index < 3 && request == apkRequest.get(); index++) {
+            int scheme = index;
+            int version = scheme + 1;
+            try {
+                List<SigningCertificate> certificates = new ArrayList<>();
+                for (byte[] bytes : SignUtil.readCertificates(apk, version)) {
+                    certificates.add(new SigningCertificate(bytes));
                 }
-
-            }
-        }).start();
-
-        //图标读取
-
-        String icopath = apkInfo.getIcon();
-    /*    Map map=apkInfo.getIcons();
-        for (Object key : map.keySet()) {
-            System.out.println(key + ":" + map.get(key));
-        }*/
-        //遍历ICON列表
-        PermissionsUtil permissionsUtil = new PermissionsUtil();
-        List<String> list1 = permissionsUtil.getList_PermissionsKey();
-        List<String> list2 = permissionsUtil.getList_PermissionsName();
-        List<String> list3 = permissionsUtil.getList_PermissionsNotes();
-        Map<String, Object> map = new HashMap<>();
-
-        List list = apkInfo.getUsesPermissions();
-
-        for (Object key : list) {
-            boolean isput = false;
-            for (int i = 0; i < list1.size(); i++) {
-                if (key.equals(list1.get(i))) {
-                    PermissionsObj permissionsObj = new PermissionsObj((String) key, list2.get(i), list3.get(i));
-                    map.put((String) key, permissionsObj);
-                    isput = true;
-                    break;
-                }
-                if (isput == false) {
-                    PermissionsObj permissionsObj = new PermissionsObj((String) key, "未知权限", "");
-                    map.put((String) key, permissionsObj);
-                }
+                showForCurrentApk(request, () -> view.showSignatures(scheme, certificates,
+                        "未读取到 V" + version + " 签名证书"));
+            } catch (IOException | SecurityException e) {
+                showForCurrentApk(request, () -> view.showSignatures(scheme, Collections.emptyList(),
+                        "无法读取 V" + version + " 签名证书"));
             }
         }
+    }
 
-        DefaultTableModel jTable_PermissionsTableModel = new DefaultTableModel() {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        int i = 0;
-        //权限转数组
-        String DataArray[][] = new String[map.size()][4];
-        for (Object key : map.keySet()) {
-            PermissionsObj obj = (PermissionsObj) map.get(key);
-            DataArray[i][0] = String.valueOf(i+1);
-            DataArray[i][1] = obj.getPermissionskey();
-            DataArray[i][2] = obj.getPermissionsName();
-            DataArray[i][3] = obj.getPermissionsExplan();
-            i++;
+    private void loadApkInfo(File apk, long request) {
+        ApkUtil aapt = new ApkUtil();
+        ApkInfo info = aapt.parseApk(apk.getPath());
+        if (info == null) {
+            showForCurrentApk(request, view::showMetadataError);
+            return;
         }
-        //构建表格模型
-        String[] jTable_Permissions_colname = {"编号", "英文名", "权限名称", "权限注释"};
-        DefaultTableModel model = new DefaultTableModel(DataArray, jTable_Permissions_colname){
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        jTable_Permissions.setModel(model);
-        jTable_Permissions.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        jTable_Permissions.getColumnModel().getColumn(0).setPreferredWidth(50);
-        jTable_Permissions.getColumnModel().getColumn(1).setPreferredWidth(120);
-        jTable_Permissions.getColumnModel().getColumn(2).setPreferredWidth(120);
-        jTable_Permissions.getColumnModel().getColumn(3).setPreferredWidth(400);
+        if (request != apkRequest.get()) {
+            return;
+        }
+        showForCurrentApk(request, () -> view.showMetadata(info));
+        loadPermissions(aapt, apk, info, request);
+        Icon icon = readIcon(apk, info);
+        showForCurrentApk(request, () -> view.showApkIcon(icon));
+        if (request == apkRequest.get()) {
+            String md5 = Md5CaculateUtil.getMD5(apk);
+            String protection = readProtection(apk);
+            showForCurrentApk(request, () -> view.showFileDetails(
+                    md5 == null ? null : md5.toUpperCase(Locale.ROOT), protection));
+        }
+    }
 
-        //end
-        File file = new File(FilePath);
+    private void loadPermissions(ApkUtil aapt, File apk, ApkInfo info, long request) {
         try {
-            ZipFile zf = new ZipFile(file);
-            ZipEntry zipEntry = zf.getEntry(icopath);
-            InputStream inputStream = zf.getInputStream(zipEntry);
-            byte[] bite = readStream(inputStream);
-            ImageIcon icon = new ImageIcon(bite);
-            Image img = icon.getImage();
-            img = img.getScaledInstance(96, 96, Image.SCALE_SMOOTH);//图片平滑优先，大小默认96*96
-            icon.setImage(img);
-            IcoBox.setIcon(icon);
-            /*=null;
-            inputStream.read(bite);
-            ImageIcon icon=new ImageIcon(bite);
-            IcoBox.setIcon(icon);*/
-            zf.close();
-            inputStream.close();
+            String[][] rows = AndroidPermissionCatalog.rows(aapt.readManifestPermissions(apk));
+            showForCurrentApk(request, () -> view.showPermissions(rows, true));
         } catch (IOException e) {
-            e.printStackTrace();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public ItemListener getItemListener() {
-        ItemListener itemListener = new ItemListener() {
-            @Override
-            public void itemStateChanged(ItemEvent e) {
-                if (e.getItem().equals("默认")) {
-                    Edit_AppName.setText(String.valueOf(AppName.get("label")));
-
-                } else {
-                    Edit_AppName.setText(String.valueOf(AppName.get(e.getItem())));
+            System.err.println("读取 Android 清单权限失败：" + e.getMessage());
+            List<ManifestPermission> summary = new ArrayList<>();
+            for (String name : new LinkedHashSet<>(info.getUsesPermissions())) {
+                if (!name.isEmpty()) {
+                    summary.add(ManifestPermission.requestFromSummary(name));
                 }
             }
-        };
-        return itemListener;
-    }
-
-    public byte[] readStream(InputStream inStream) throws Exception {
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int len = -1;
-        while ((len = inStream.read(buffer)) != -1) {
-            outStream.write(buffer, 0, len);
+            String[][] rows = AndroidPermissionCatalog.rows(summary);
+            showForCurrentApk(request, () -> view.showPermissions(rows, false));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-        outStream.close();
-        inStream.close();
-        return outStream.toByteArray();
     }
 
+    private Icon readIcon(File apk, ApkInfo apkInfo) {
+        Set<String> paths = new LinkedHashSet<>();
+        paths.add(apkInfo.getIcon());
+        paths.addAll(apkInfo.getIcons().values());
+        try (ZipFile zip = new ZipFile(apk)) {
+            for (String path : paths) {
+                if (path == null || path.isEmpty()) {
+                    continue;
+                }
+                ZipEntry entry = zip.getEntry(path);
+                if (entry == null) {
+                    continue;
+                }
+                try (InputStream input = zip.getInputStream(entry)) {
+                    BufferedImage image = ImageIO.read(input);
+                    if (image != null) {
+                        double scale = 52.0 / Math.max(image.getWidth(), image.getHeight());
+                        int width = Math.max(1, (int) Math.round(image.getWidth() * scale));
+                        int height = Math.max(1, (int) Math.round(image.getHeight() * scale));
+                        return new ImageIcon(image.getScaledInstance(width, height, Image.SCALE_SMOOTH));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("读取 APK 图标失败：" + e.getMessage());
+        }
+        return null;
+    }
 
+    private String readProtection(File apk) {
+        SoInfoUtil soInfo = new SoInfoUtil();
+        try {
+            for (String path : ZipUtil.readZipFile(apk.getPath(), "lib/")) {
+                String protection = soInfo.IsThisSo(new File(path).getName());
+                if (!protection.isEmpty()) {
+                    return protection;
+                }
+            }
+            return "未识别到加固壳";
+        } catch (IOException e) {
+            System.err.println("读取 APK 加固信息失败：" + e.getMessage());
+            return "读取失败";
+        }
+    }
+
+    private void showForCurrentApk(long request, Runnable update) {
+        SwingUtilities.invokeLater(() -> {
+            if (request == apkRequest.get()) {
+                update.run();
+            }
+        });
+    }
 }

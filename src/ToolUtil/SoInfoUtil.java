@@ -1,6 +1,7 @@
 package ToolUtil;
 //查壳工具
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,10 +13,15 @@ public class SoInfoUtil {
     public  SoInfoUtil() {
         //拆分本地文件
         try {
-            File f = new File("src/res/soinfo.dat");
-            if (f.isFile() && f.exists()) {
-                InputStreamReader read = new InputStreamReader(new FileInputStream(f), "utf-8");
-                BufferedReader reader = new BufferedReader(read);
+            InputStream data = SoInfoUtil.class.getResourceAsStream("/res/soinfo.dat");
+            if (data == null) {
+                File file = new File("src/res/soinfo.dat");
+                if (!file.isFile()) {
+                    return;
+                }
+                data = new FileInputStream(file);
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(data, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     String[] str = line.split("/");
@@ -26,9 +32,8 @@ public class SoInfoUtil {
                         Infolist.add(Soinfo);
                     }
                 }
-                read.close();
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
